@@ -1,0 +1,58 @@
+name: Dependency Upgrade Reminder
+on:
+  schedule:
+    # Runs every 3 weeks on Monday at 12:00am PST (8:00am UTC)
+    - cron: 0 8 */21 * 1
+  workflow_dispatch: # Allows manual triggering from GitHub Actions tab
+
+jobs:
+  create_issue:
+    name: Create dependency upgrade reminder issue
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      - name: Create dependency upgrade reminder issue
+        run: |
+          # Check if there's already an open issue with the labels
+          existing_issue_number=$(gh issue list \
+            --label "$LABELS" \
+            --state open \
+            --json number \
+            --jq '.[0].number')
+
+          if [[ -n $existing_issue_number ]]; then
+            echo "An open issue (#$existing_issue_number) already exists with labels '$LABELS'. Skipping issue creation."
+            exit 0
+          fi
+
+          gh issue create \
+            --title "$TITLE" \
+            --assignee "$ASSIGNEES" \
+            --label "$LABELS" \
+            --body "$BODY"
+
+          # Add the issue to a GitHub project (if PROJECT_NUMBER is set)
+          if [[ -n $PROJECT_NUMBER ]]; then
+            issue_id=$(gh issue view --json id --jq '.id')
+            gh project item-add "$PROJECT_NUMBER" --owner "${{ github.repository_owner }}" --url "${{ github.server_url }}/${{ github.repository }}/issues/$(gh issue view --json number --jq '.number')"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TITLE: Upgrade Dependencies
+          ASSIGNEES: ""
+          LABELS: dependencies,maintenance
+          PROJECT_NUMBER: 8
+          BODY: |
+            ### Repositories to upgrade
+
+            - [ ] delta-site
+            - [ ] delta-docs
+            - [ ] uc-site
+            - [ ] uc-docs
+
+            ### How to upgrade
+
+            Run the `scripts/upgrade-dependencies` file in each repository.
